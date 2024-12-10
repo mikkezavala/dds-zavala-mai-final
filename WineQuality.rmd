@@ -154,7 +154,7 @@ permuteModels <- function(target, data, k = 5) {
     
     for (i in seq_along(chunk)) {
       features_subset <- chunk[[i]]
-      message(paste("Starting: ", target, " ~ ", paste(features_subset, collapse = " + "), collapse = "\n"))
+      # message(paste("Starting: ", target, " ~ ", paste(features_subset, collapse = " + "), collapse = "\n"))
       knn_nb_results <- data.frame(evaluateModels(target, features_subset, data, k))
       regression_results <- data.frame(evaluateRegression(target, features_subset, data))
       
