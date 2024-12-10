@@ -1,0 +1,34 @@
+"0","library(dplyr)"
+"2","
+Attaching package: ‘dplyr’
+
+"
+"2","The following objects are masked from ‘package:stats’:
+
+    filter, lag
+
+"
+"2","The following objects are masked from ‘package:base’:
+
+    intersect, setdiff, setequal, union
+
+"
+"0","library(tidyr)"
+"0","library(tibble)"
+"0","library(ggplot2)"
+"0","library(corrplot)"
+"2","corrplot 0.95 loaded
+"
+"0","wines = read.csv("
+"0","  './Wine_Train.csv',"
+"0","  header = TRUE"
+"0",")"
+"0",""
+"0","sprintf(""Data composed of: %d rows and %d columns"","
+"0","        nrow(wines),"
+"0","        ncol(wines))"
+"1","[1]"
+"1"," ""Data composed of: 5463 rows and 13 columns"""
+"1","
+"
+"0","head(wines, n = 5)"

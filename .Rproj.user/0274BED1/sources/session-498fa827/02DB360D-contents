@@ -1,0 +1,249 @@
+## Model Preparation and Fit
+library(dplyr)
+library(olsrr)
+library(car)
+library(caret)
+library(MASS)
+library(leaps)
+library(corrplot)
+library(DAAG)
+
+
+data_train <- read.csv(
+  '/Users/mikkezavala/Library/Mobile Documents/com~apple~CloudDocs/Documents/School/Master in Data Science/[DS-6371] Statistical Foundations for Data Science/Final Project/train.csv'
+)
+
+data_test <- read.csv(
+  '/Users/mikkezavala/Library/Mobile Documents/com~apple~CloudDocs/Documents/School/Master in Data Science/[DS-6371] Statistical Foundations for Data Science/Final Project/test.csv'
+)
+
+filtered_columns <- c(
+  "Id",
+  "RoofStyle",
+  "BsmtHalfBath",
+  "MiscVal",
+  "MoSold",
+  "YrSold",
+  "Street",
+  "Utilities",
+  "TotRmsAbvGrd",
+  "MSZoning",
+  "FireplaceQu",
+  "GarageType",
+  "GarageQual",
+  "BsmtQual",
+  "BsmtFinType2",
+  "ExterCond"
+)
+
+# Preclean
+existing_levels <- unique(c(
+  as.character(data_train$Exterior1st),
+  as.character(data_train$Exterior2nd)
+))
+data_train$Exterior1st <- factor(data_train$Exterior1st, levels = existing_levels)
+data_train$Exterior2nd <- factor(data_train$Exterior2nd, levels = existing_levels)
+
+
+data_train$ExteriorCombined <- ifelse(
+  is.na(data_train$Exterior1st) &
+    is.na(data_train$Exterior2nd),
+  "None",
+  ifelse(
+    data_train$Exterior1st == data_train$Exterior2nd,
+    as.character(data_train$Exterior1st),
+    "Mixed"
+  )
+)
+
+data_train$ExteriorCombined <- factor(data_train$ExteriorCombined,
+                                      levels = c("None", "Mixed", existing_levels))
+
+data_train <- data_train %>% dplyr::select(-Exterior1st, -Exterior2nd)
+str(data_train$ExteriorCombined)
+print(table(data_train$ExteriorCombined))
+
+
+filtered_data <- data_train |>
+  filter(!Id %in% c(534, 1299))  |>
+  dplyr::select(-all_of(filtered_columns))
+
+filtered_test_data <- data_test |>
+  dplyr::select(-all_of(filtered_columns))
+
+build_factor <- function(data, reference = NULL) {
+  for (col in colnames(data)) {
+    if (!is.numeric(data[[col]])) {
+      data[[col]][is.na(data[[col]])] <- "None"
+      if (!is.null(reference)) {
+        known_levels <- levels(reference[[col]])
+        data[[col]] <- factor(data[[col]], levels = known_levels)
+        data[[col]][is.na(data[[col]])] <- "None"
+      } else {
+        data[[col]] <- factor(data[[col]])
+      }
+    } else {
+      data[[col]][is.na(data[[col]])] <- median(data[[col]], na.rm = TRUE)
+    }
+  }
+  return(data)
+}
+
+encode <- function(data_train) {
+  data <- build_factor(data_train)
+  
+  dm_model <- dummyVars( ~ . - SalePrice, data = data, fullRank = TRUE)
+  encoded_data <- predict(dm_model, newdata = data)
+  
+  encoded_data <- as.data.frame(encoded_data)
+  encoded_data$SalePrice <- data$SalePrice
+  
+  return(encoded_data)
+}
+
+loocv <- function(model_formula, data) {
+  glm_fit <- glm(model_formula, data = data)
+  cv_error <- cv.glm(data, glm_fit, K = nrow(data))$delta[1]
+  return(cv_error)
+}
+
+df_train <- build_factor(filtered_data)
+df_train_encoded <- encode(filtered_data)
+
+cor_matrix <- cor(df_train_encoded)
+
+threshold <- 0.8
+high_corr <- which(abs(cor_matrix) > threshold &
+                     abs(cor_matrix) < 1, arr.ind = TRUE)
+high_corr_values <- data.frame(
+  Var1 = rownames(cor_matrix)[high_corr[, 1]],
+  Var2 = colnames(cor_matrix)[high_corr[, 2]],
+  Correlation = cor_matrix[high_corr]
+)
+
+cor_with_saleprice <- cor_matrix["SalePrice", ]
+cor_with_saleprice <- cor_with_saleprice[!names(cor_with_saleprice) %in% "SalePrice"]
+cor_with_saleprice_sorted <- sort(cor_with_saleprice, decreasing = TRUE)
+filtered_correlations <- cor_with_saleprice_sorted[grepl("MSSubClass", names(cor_with_saleprice_sorted))]
+
+
+print(high_corr_values)
+print(filtered_correlations)
+
+## Subset
+model_full <- SalePrice ~ .
+fit_full <- lm(model_full, data = df_train)
+
+# ols_step_both_p(
+#   fit_full,
+#   p_enter = alpha,
+#   p_remove = alpha,
+#   print_plot = TRUE,
+#   progress = TRUE,
+#   details = TRUE
+# )
+# 
+# ols_step_backward_p(
+#   fit_full,
+#   p_val = alpha,
+#   progress = TRUE,
+#   details = TRUE,
+#   print_plot = TRUE
+# )
+# 
+# ols_step_forward_p(
+#   fit_full,
+#   p_val = alpha,
+#   progress = TRUE,
+#   details = TRUE,
+#   print_plot = TRUE
+# )
+
+
+model_stw <- SalePrice ~ OverallQual + GrLivArea + BsmtFinSF1 + TotalBsmtSF + KitchenQual + LotArea + YearBuilt + OverallCond + KitchenAbvGr + ExterQual + Condition2 + BedroomAbvGr + MasVnrArea + MasVnrType + BsmtExposure + SaleCondition + PoolArea + Neighborhood + BldgType + LandSlope + ScreenPorch + WoodDeckSF + Functional + GarageCars
+model_bck <- SalePrice ~ LotFrontage + LotArea + LotConfig + LandSlope + Neighborhood + Condition1 + Condition2 + BldgType + HouseStyle + OverallQual + OverallCond + YearBuilt + YearRemodAdd + MasVnrType + MasVnrArea + ExterQual + Foundation + BsmtExposure + BsmtFinSF1 + BsmtFinSF2 + BsmtUnfSF + TotalBsmtSF + X2ndFlrSF + GrLivArea + BedroomAbvGr + KitchenAbvGr + KitchenQual + Functional + Fireplaces + GarageCars + WoodDeckSF + ScreenPorch + PoolArea + SaleCondition
+model_fwd <- SalePrice ~ OverallQual + GrLivArea + BsmtFinSF1 + TotalBsmtSF + GarageArea + YearRemodAdd + KitchenQual + LotArea + YearBuilt + OverallCond + KitchenAbvGr + ExterQual + Condition2 + BedroomAbvGr + LotFrontage + MasVnrArea + BsmtExposure + X2ndFlrSF + MasVnrType + PoolArea + SaleCondition + Neighborhood + BldgType + ScreenPorch + WoodDeckSF + Functional + LandSlope + X1stFlrSF
+  
+fit_model_stw <- lm(model_stw, data = df_train)
+fit_model_bck <- lm(model_bck, data = df_train)
+fit_model_fwd <- lm(model_fwd, data = df_train)
+
+# vif(fit_model_stw)
+# alias(fit_model_stw)
+
+# vif(fit_model_bck)
+# alias(fit_model_bck)
+
+# vif(fit_model_fwd)
+# alias(fit_model_fwd)
+
+
+#### Leave One Out Cross Validation
+
+## STW -- RMSE: 28981.9 | Rsquared: 0.8676443 || X2ndFlrSF X1stFlrSF
+#train_control <- trainControl(method = "LOOCV")
+#train(model_stw, data = df_train, trControl = train_control, method = "lm")
+
+## FWD -- RMSE: 29024.38 | Rsquared: 0.8672764
+#train_control <- trainControl(method = "LOOCV")
+#train(model_fwd, data = df_train, trControl = train_control, method = "lm")
+
+## BCK -- RMSE: 28898.83 | Rsquared: 0.8685823
+#train_control <- trainControl(method = "LOOCV")
+#train(model_bck, data = df_train, trControl = train_control, method = "lm")
+
+### PREDICT AND PRODUCE
+
+# model_stw_tune <- SalePrice ~ OverallQual + GrLivArea + BsmtFinSF1 + TotalBsmtSF + KitchenQual + LotArea + YearBuilt + OverallCond + KitchenAbvGr + ExterQual + Condition2 + BedroomAbvGr + MasVnrArea + MasVnrType + BsmtExposure + SaleCondition + PoolArea + Neighborhood + BldgType + LandSlope + ScreenPorch + WoodDeckSF + Functional + GarageCars
+model_candidate <- SalePrice ~ BedroomAbvGr + BsmtExposure + BsmtFinSF1 + Condition2 + GarageFinish + GarageYrBlt + GrLivArea  + KitchenQual + LandContour + LandSlope + LotArea + LowQualFinSF + MSSubClass + MasVnrArea + Neighborhood + OverallCond + OverallQual + PoolQC + RoofMatl + SaleCondition + ScreenPorch + HeatingQC  + BsmtUnfSF + GarageCars + WoodDeckSF
+model_candidate_log <- LogSalePrice ~ BedroomAbvGr + BsmtExposure + BsmtFinSF1 + Condition2 + GarageFinish + GarageYrBlt + GrLivArea  + KitchenQual + LandContour + LandSlope + LotArea + LowQualFinSF + MSSubClass + MasVnrArea + Neighborhood + OverallCond + OverallQual + PoolQC + RoofMatl + SaleCondition + ScreenPorch + HeatingQC  + BsmtUnfSF + GarageCars + WoodDeckSF
+# model_combo <- SalePrice ~ BedroomAbvGr + BldgType + BsmtExposure + BsmtFinSF1 + BsmtUnfSF + Condition2 + ExterQual + Functional + GarageCars + GarageFinish + GarageYrBlt + GrLivArea + HeatingQC + KitchenAbvGr + KitchenQual + LandContour + LandSlope + LotArea + LowQualFinSF + MSSubClass + MasVnrArea + MasVnrType + Neighborhood + OverallCond + OverallQual + PoolArea + PoolQC + RoofMatl + SaleCondition + ScreenPorch + TotalBsmtSF + WoodDeckSF + YearBuilt
+# model_combo_log <- LogSalePrice ~ BedroomAbvGr + BldgType + BsmtExposure + BsmtFinSF1 + BsmtUnfSF + Condition2 + ExterQual + Functional + GarageCars + GarageFinish + GarageYrBlt + GrLivArea + HeatingQC + KitchenAbvGr + KitchenQual + LandContour + LandSlope + LotArea + LowQualFinSF + MSSubClass + MasVnrArea + MasVnrType + Neighborhood + OverallCond + OverallQual + PoolArea + PoolQC + RoofMatl + SaleCondition + ScreenPorch + TotalBsmtSF + WoodDeckSF + YearBuilt
+
+# Fit Model
+fit_predict_model <- lm(model_candidate, data = df_train)
+# Fit Log Model
+df_train$LogSalePrice <- log(df_train$SalePrice)
+fit_predict_model_log <- lm(model_candidate_log, data = df_train)
+
+AIC(fit_predict_model_log)
+summary(fit_predict_model_log)
+train_control <- trainControl(method = "LOOCV")
+
+train(model_candidate_log,
+      data = df_train,
+      trControl = train_control,
+      method = "lm")
+
+# Prepare Data
+data_test_log <- data_test
+data_test$SalePrice <- 34900
+data_test_log$SalePrice <- 34900
+
+# Run Predictions
+pred <- predict(fit_predict_model, newdata = build_factor(filtered_test_data, df_train))
+pred_log <- predict(fit_predict_model_log, newdata = build_factor(filtered_test_data, df_train))
+
+# Set the predictions (and convert back on log)
+data_test$SalePrice <- pred
+data_test_log$SalePrice <- exp(pred_log)
+
+# Set Minimum on NA's
+data_test_log$SalePrice[is.na(data_test_log$SalePrice)] <- 34900
+
+# Plot Residuals Non Log
+plot(fit_predict_model$fitted.values, fit_predict_model$residuals)
+abline(h = 0, col = "red")
+
+plot(fit_predict_model_log$fitted.values, fit_predict_model_log$residuals)
+abline(h = 0, col = "blue")
+
+# Prepare Both for save
+output <- data_test |> dplyr::select("Id", "SalePrice")
+output_log <- data_test_log |> dplyr::select("Id", "SalePrice")
+
+# Write Results
+write.csv(output, file = "/Users/mikkezavala/Desktop/tests/final.csv", row.names = FALSE)
+write.csv(output_log, file = "/Users/mikkezavala/Desktop/tests/final_log.csv", row.names = FALSE)
+
+

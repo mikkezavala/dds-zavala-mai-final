@@ -1,0 +1,7 @@
+"0",""
+"0","emptyData <- colSums(is.na(wines))"
+"0","totalRows <- nrow(wines)"
+"0",""
+"0","tibble(Column = names(wines),"
+"0","       `Total_Rows` = totalRows,"
+"0","       `NA_Count` = emptyData)"
