@@ -1,6 +1,0 @@
-"0",""
-"0","selected_data <- wines |> select(-ID)"
-"0","corr_matrix <- cor(selected_data, use = ""complete.obs"")"
-"0",""
-"0","corrplot(corr_matrix, method = ""color"")"
-"0",""
