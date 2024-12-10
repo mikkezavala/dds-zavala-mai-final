@@ -1,7 +1,7 @@
 ---
 title: "DDS 6306 Wine Quality - Final Project"
 output: html_document
-date: "2024-11-27"
+date: "2024-11-27" s
 ---
 
 ```{r setup, include=FALSE}
