@@ -62,6 +62,8 @@ library(progressr)
 library(furrr)
 library(caret)
 library(DT)
+library(Metrics) 
+
 
 # Parallel Execution Setup
 n_cores <- detectCores()
@@ -112,20 +114,31 @@ evaluateModels <- function(target, features, data_train, knn_n = 5) {
 
 evaluateRegression <- function(target, features, data) {
   model <- paste(target, " ~ ", paste(features, collapse = " + "))
-  fit <- lm(as.formula(model), data = data)
+  train_indices <- createDataPartition(data[[target]], p = 0.75, list = FALSE)
+  train_data <- data[train_indices, ]
+  validation_data <- data[-train_indices, ]
+  
+  fit <- lm(as.formula(model), data = train_data)
+  predictions <- predict(fit, newdata = validation_data)
+  actual_values <- validation_data[[target]]
+  
+  residuals <- actual_values - predictions
+  mae_value <- mean(abs(residuals))
+  
+  # Metrics::mae(validation_data[[target]], predictions)
+  # mean(abs(residuals))
+  # print(validation_data[[target]])
+
   
   return(
     list(
       features = model,
-      nb_accuracy = NA,
-      nb_sensitivity = NA,
-      nb_specificity = NA,
-      knn_accuracy = NA,
-      knn_sensitivity = NA,
-      knn_specificity = NA,
-      adjusted_r2 = summary(fit)$adj.r.squared,
       AIC = AIC(fit),
-      BIC = BIC(fit)
+      BIC = BIC(fit),
+      MAE = mae_value,
+      RMSE = sqrt(mean(residuals ^ 2)),
+      ADJUSTED_R2 = summary(fit)$adj.r.squared,
+      R2_VALIDATION = 1 - sum(residuals ^ 2) / sum((actual_values - mean(actual_values)) ^ 2)
     )
   )
 }
@@ -159,7 +172,6 @@ permuteModels <- function(target, data, k = 5) {
       regression_results <- data.frame(evaluateRegression(target, features_subset, data))
       
       #regression_results <- regression_results[regression_results$adjusted_r2 > 0.7, , drop = FALSE]
-      
       combined_results <- data.frame(
         iteration = paste(.x, "-", i),
         features = paste(features_subset, collapse = ", "),
@@ -169,10 +181,12 @@ permuteModels <- function(target, data, k = 5) {
         knn_accuracy = knn_nb_results$knn_accuracy,
         knn_sensitivity = knn_nb_results$knn_sensitivity,
         knn_specificity = knn_nb_results$knn_specificity,
-        adjusted_r2 = regression_results$adjusted_r2,
         AIC = regression_results$AIC,
-        BIC = regression_results$BIC
-        
+        BIC = regression_results$BIC,
+        MAE = regression_results$MAE,
+        RMSE = regression_results$RMSE,
+        ADJUSTED_R2 = regression_results$ADJUSTED_R2,
+        R2_VALIDATION = regression_results$R2_VALIDATION
       )
       
       results_list[[i]] <- combined_results
@@ -192,7 +206,7 @@ runTests <- function(target, data, k = 30) {
   })
   
   return(all_results |>
-           arrange(desc(adjusted_r2)) |>
+           arrange(MAE) |>
            mutate(across(where(is.numeric), ~ round(.x, 6))))
 }
 
