@@ -1,18 +1,4 @@
----
-title: "DDS 6306 Wine Quality - Final Project"
-output: html_document
-date: "2024-11-27"
----
-
-```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = TRUE)
-```
-
-# Wine Quality
-
-## Environment Preparation
-
-```{r}
+# Load libraries 
 library(tidyverse)
 library(caret)
 library(class)
@@ -23,41 +9,26 @@ library(car)
 library(GGally)
 library(naivebayes)
 library(ggcorrplot)
-```
 
-## Data Inspection
+# Load data
+wine_train = read.csv("Wine_Train.csv")
+wine_test = read.csv("Wine_Test_Set.csv")
 
-```{r cars}
-wine_train = read.csv('./Wine_Train.csv', header = TRUE)
-wine_test = read.csv("./Wine_Test_Set.csv", header = TRUE)
+# Data Structure
+str(wine_train)
+str(wine_test)
 
-sprintf("Data composed of: %d rows and %d columns",
-        nrow(wine_train),
-        ncol(wine_train))
-head(wine_train, n = 5)
+# Missing Data
+print(colSums(is.na(wine_train)))
+print(colSums(is.na(wine_test)))
 
-emptyData <- colSums(is.na(wine_train))
-totalRows <- nrow(wine_train)
-
-tibble(
-  Column = names(wine_train),
-  `Total_Rows` = totalRows,
-  `NA_Count` = emptyData
-)
-```
-
-### Histogram of the quality
-
-```{r}
+# Histogram of the quality
 ggplot(wine_train, aes(x = quality)) +
   geom_histogram(binwidth = 1, fill = "maroon", color = "black", alpha = 0.7) +
   labs(title = "Distribution of Wine Quality", x = "Quality", y = "Frequency") +
   theme_minimal()
-```
 
-### Correlation
-
-```{r}
+# Correlation Matrix
 correlation_matrix = cor(wine_train %>% select_if(is.numeric))
 corrplot(correlation_matrix, 
          method = "color",           
@@ -70,28 +41,18 @@ corrplot(correlation_matrix,
          diag = FALSE,              
          tl.cex = 0.8)
 
-```
-
-### Variable Inflation
-
-```{r}
+# Variance Inflation Factor (VIF)
 vif_data = lm(quality ~ ., data = wine_train %>% select(-ID))
 vif_values = vif(vif_data)
 print(vif_values)
-```
 
-#### Addresing High Inflation
-
-```{r}
+# Remove features with high VIF
 high_vif_threshold = 10
 features_to_remove = names(vif_values[vif_values > high_vif_threshold])
 model_cols = setdiff(names(wine_train %>% select_if(is.numeric)), c("quality", features_to_remove))
-sprintf("Removed features with high VIF: %s", features_to_remove)
-```
+cat("Removed features with high VIF:\n", features_to_remove, "\n")
 
-## Feature Construction
-
-```{r}
+# Feature Engineering Function
 create_engineered_features = function(data) {
   data %>%
     mutate(
@@ -108,24 +69,19 @@ create_engineered_features = function(data) {
 }
 wine_train_engineered = create_engineered_features(wine_train)
 wine_test_engineered = create_engineered_features(wine_test)
-```
 
-### Scaling
-
-```{r}
+# Scaling
 preprocess_params = preProcess(wine_train_engineered[model_cols], method = c("center", "scale"))
 wine_train_scaled = predict(preprocess_params, wine_train_engineered)
 wine_test_scaled = predict(preprocess_params, wine_test_engineered)
-```
 
-## Validation Process and Model Fit
-
-```{r}
+# Validation Split
 set.seed(123)
 trainIndex = createDataPartition(wine_train$quality, p = 0.8, list = FALSE)
 train_set = wine_train_scaled[trainIndex, ]
 valid_set = wine_train_scaled[-trainIndex, ]
 
+# quality_cat column to train_set and valid_set
 train_set$quality_cat = cut(
   train_set$quality,
   breaks = c(-Inf, 4, 5, 6, 7, Inf),
@@ -138,33 +94,27 @@ valid_set$quality_cat = cut(
   labels = c("Very Low", "Low", "Medium", "High", "Very High")
 )
 
+# Cross-Validation Setup
 cv_control = trainControl(method = "cv", number = 5)
-```
 
-### Fitting with Linear Regression
 
-```{r}
+
+# Linear Regression 
 lm_model = train(quality ~ ., data = train_set[, c(model_cols, "quality")], 
                  method = "lm", trControl = cv_control)
 lm_predictions = predict(lm_model, valid_set[, model_cols])
 lm_mae = mean(abs(lm_predictions - valid_set$quality))
-sprintf("MAE for Linear Regression:%.6f", lm_mae)
-```
+cat("MAE for Linear Regression:", lm_mae, "\n")
 
-### Fitting with Naive Bayes
-
-```{r}
+# Naive Bayes 
 nb_model = train(
   quality_cat ~ .,
   data = train_set[, c(model_cols, "quality_cat")],
   method = "naive_bayes",
   trControl = cv_control
 )
-```
 
-#### Predictions and MAE for Naive Bayes
-
-```{r}
+# Predictions and MAE for Naive Bayes
 nb_predictions_cat = predict(nb_model, valid_set[, model_cols])
 nb_predictions = as.numeric(as.character(factor(
   nb_predictions_cat,
@@ -172,15 +122,10 @@ nb_predictions = as.numeric(as.character(factor(
   labels = c(3, 4.5, 5.5, 6.5, 7.5)
 )))
 nb_mae = mean(abs(nb_predictions - valid_set$quality))
-sprintf("MAE for Naive Bayes: %.6f", nb_mae)
-```
+cat("MAE for Naive Bayes:", nb_mae, "\n")
 
-### Fitting with KNN
-
-#### k-NN Model with Cross-Validation
-
-```{r}
-cv_control = trainControl(method = "cv", number = 5)
+# k-NN Model with Cross-Validation
+cv_control = trainControl(method = "cv", number = 5) # 5-fold cross-validation
 
 evaluate_knn = function(k, train_data, train_labels, folds) {
   fold_mae = vector("numeric", length = length(folds))
@@ -199,7 +144,7 @@ evaluate_knn = function(k, train_data, train_labels, folds) {
     fold_mae[i] = mean(abs(predictions - train_labels[valid_idx]))
   }
   
-  return(mean(fold_mae))
+  return(mean(fold_mae)) # Average MAE across all folds
 }
 
 set.seed(123)
@@ -211,12 +156,8 @@ knn_mae_values = sapply(k_values, function(k) {
 })
 
 best_k = k_values[which.min(knn_mae_values)]
-sprintf("Best k for k-NN: %.6f", best_k)
-```
+cat("Best k for k-NN:", best_k, "\n")
 
-#### Final KNN Model
-
-```{r}
 final_knn_model = knn.reg(
   train = as.matrix(train_set[, model_cols]),
   test = as.matrix(valid_set[, model_cols]),
@@ -224,24 +165,32 @@ final_knn_model = knn.reg(
   k = best_k
 )
 
+# Calculate MAE 
 knn_mae = mean(abs(final_knn_model$pred - valid_set$quality))
-sprintf("MAE for k-NN: %s", knn_mae)
-```
+cat("MAE for k-NN:", knn_mae, "\n")
 
-## Model MAE comparison
-
-```{r}
+# Compare MAE of Models
 model_comparison = data.frame(
   Model = c("Linear Regression", "Naive Bayes", "k-NN"),
   MAE = c(lm_mae, nb_mae, knn_mae)
 )
 print(model_comparison)
 
+# Final Predictions for Test Set (k-NN)
+final_knn_predictions = knn.reg(
+  train = as.matrix(wine_train_scaled[, model_cols]),
+  test = as.matrix(wine_test_scaled[, model_cols]),
+  y = wine_train_scaled$quality,
+  k = best_k
+)$pred
+
+# Combine MAE information with the data
 mae_data = data.frame(
   Model = c("Linear Regression", "Naive Bayes", "k-NN"),
   MAE = c(lm_mae, nb_mae, knn_mae)
 )
 
+# Bar plot of MAE for each model with annotations
 ggplot(model_comparison, aes(x = Model, y = MAE, fill = Model)) +
   geom_bar(stat = "identity") +
   geom_text(aes(label = round(MAE, 3)), vjust = -0.5, size = 4, color = "black") +
@@ -251,20 +200,21 @@ ggplot(model_comparison, aes(x = Model, y = MAE, fill = Model)) +
     y = "Mean Absolute Error"
   ) +
   theme_minimal()
-```
 
-### Define model_cols without 'ID' and 'quality'
-
-```{r}
+# Define model_cols without 'ID' and 'quality'
 model_cols = setdiff(names(wine_train %>% select_if(is.numeric)), c("ID", "quality"))
+
+# Compute correlations between features and wine quality
 feature_correlations_knn = cor(wine_train[, model_cols], wine_train$quality, use = "complete.obs")
 
+# Convert correlations into a data frame
 feature_importance_knn = data.frame(
   Feature = model_cols,
   Correlation = feature_correlations_knn
 ) %>% 
-  arrange(desc(abs(Correlation)))
+  arrange(desc(abs(Correlation)))  # Sort by absolute correlation
 
+# Create the plot without 'ID'
 ggplot(feature_importance_knn, aes(x = reorder(Feature, Correlation), y = Correlation, fill = Correlation > 0)) +
   geom_bar(stat = "identity") +
   coord_flip() +
@@ -276,35 +226,24 @@ ggplot(feature_importance_knn, aes(x = reorder(Feature, Correlation), y = Correl
     fill = "Direction"
   ) +
   theme_minimal()
-```
 
-## Create submission file with ID and predicted Quality
 
-```{r}
+
+
+# Create submission file with ID and predicted Quality
 create_submission_file = function(test_data, predictions, file_path) {
   submission = data.frame(
     ID = test_data$ID,
     Quality = predictions
   )
   write.csv(submission, file_path, row.names = FALSE)
-  sprintf("Submission file created successfully at: %s", file_path)
+  cat("Submission file created successfully at", file_path, "\n")
 }
-```
 
-### Build Predictions on Test Set
-
-```{r}
-final_knn_predictions = knn.reg(
-  train = as.matrix(wine_train_scaled[, model_cols]),
-  test = as.matrix(wine_test_scaled[, model_cols]),
-  y = wine_train_scaled$quality,
-  k = best_k
-)$pred
-```
-
-### Define the file path and call the function
-
-```{r}
+# Define the file path and call the function
 file_path = "~/Desktop/Wine_Test_Predictions.csv"
 create_submission_file(wine_test, final_knn_predictions, file_path)
-```
+
+# Libraries
+
+
