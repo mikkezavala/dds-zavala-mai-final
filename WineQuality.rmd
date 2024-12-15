@@ -305,6 +305,6 @@ final_knn_predictions = knn.reg(
 ### Define the file path and call the function
 
 ```{r}
-file_path = "~/Desktop/Wine_Test_Predictions.csv"
+file_path = "Wine_Test_Predictions.csv"
 create_submission_file(wine_test, final_knn_predictions, file_path)
 ```
