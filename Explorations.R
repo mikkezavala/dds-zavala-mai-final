@@ -1,7 +1,3 @@
-library(e1071)
-library(parallel)
-library(progressr)
-library(furrr)
 library(caret)
 library(DT)
 library(Metrics) 
@@ -9,23 +5,24 @@ library(dplyr)
 library(furrr)
 library(progressr)
 library(ggplot2)
-
+library(progressr)
+library(e1071)
 
 type_mode <- tolower(names(sort(table(wine_type_location$type), decreasing = TRUE))[1])
 location_mode <- tolower(names(sort(table(wine_type_location$location), decreasing = TRUE))[1])
 
 test_data = read.csv(
-  './Wine_Test_Set.csv',
+  './Data/Wine_Test_Set.csv',
   header = TRUE
 )
 
 train_data = read.csv(
-  './Wine_Train.csv',
+  './Data/Wine_Train.csv',
   header = TRUE
 )
 
 wine_type_location <- read.csv(
-  './Wine_Types_and_Locations.csv',
+  './Data/Wine_Types_and_Locations.csv',
   header = TRUE
 ) 
 
@@ -278,8 +275,8 @@ print(conf_matrix)
 # table(wines$qlevelN)
 
 train_index <- createDataPartition(train_data$quality, p = 0.7, list = FALSE)
-train_set <- wines[train_index, ]
-test_set <- wines[-train_index, ]
+train_set <- train_data[train_index, ]
+test_set <- train_data[-train_index, ]
 
 model_base <- "quality ~ fixed.acidity + volatile.acidity + citric.acid + residual.sugar + total.sulfur.dioxide + pH + alcohol + sulphates"
 
@@ -297,11 +294,9 @@ features <- c(
 )
 
 
-results <- test_polynomials(train_data, model_base, features)
-results <- results[order(results$MSE_QUAD), ]
-results
-
-
+# results <- test_polynomials(train_data, model_base, features)
+# results <- results[order(results$MSE_QUAD), ]
+# results
 
 train_index <- createDataPartition(train_data[["quality"]], p = 0.7, list = FALSE)
 train_set <- train_data[train_index, ]
@@ -328,12 +323,9 @@ ggplot(test_set, aes(x = predicted_quality, y = quality)) +
   theme_minimal()
 
 
-
-
 train_set$quality <- factor(train_set$quality)
 test_set$quality <- factor(test_set$quality, levels = levels(train_set$quality))
 nbModel <- naiveBayes(quality ~ citric.acid + residual.sugar + pH + alcohol + sulphates + type + location, data = train_set)
-
 
 predictions_prob <- predict(nbModel, test_set, type = "raw")
 quality_levels <- as.numeric(colnames(predictions_prob))
@@ -348,7 +340,7 @@ sprintf("Mean Squared Error (MSE): %.6f", mse)
 # 
 # fit <- lm(as.formula(model_base), train_data)
 # 
-preds <- predict(fit, newdata = test_data)
+# preds <- predict(fit, newdata = test_data)
 # 
 # model_linear <- lm(quality ~ residual.sugar, data = train_data)
 # model_quad <- lm(quality ~ residual.sugar + I(residual.sugar^2), data = train_data)
@@ -360,12 +352,11 @@ preds <- predict(fit, newdata = test_data)
 # summary(model_cubic)$adj.r.squared
 # 
 # par(mfrow = c(1, 3))
-plot(fit, which = 1)  # Residuals for Linear
-# plot(model_quad, which = 1)    # Residuals for Quadratic
-# plot(model_cubic, which = 1)   # Residuals for Cubic
-# 
-ggplot(test_data, aes(x = quality, y = preds)) +
-  geom_point(color = "blue") +                  # Scatter plot
+
+predictions_prob <- predict(nbModel, test_set)
+
+ggplot(test_set, aes(x = quality, y = predictions_prob)) +
+  geom_point(color = "blue") +
   geom_abline(
     slope = 1,
     intercept = 0,
@@ -380,7 +371,7 @@ ggplot(train_data, aes(x = alcohol, y = quality)) +
   geom_smooth(method = "loess", color = "green") +
   labs(title = "Quality vs Alcohol")
 
-ggplot(train_data, aes(x = residual.sugar, y = qlevelN)) +
+ggplot(train_data, aes(x = residual.sugar, y = quality)) +
   geom_point() +
   geom_smooth(method = "loess", color = "blue") +
   labs(title = "Quality vs Residual Sugar")

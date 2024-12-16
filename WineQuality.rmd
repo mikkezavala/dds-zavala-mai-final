@@ -34,9 +34,9 @@ library(DT)
 
 ```{r}
 
-wine_train = read.csv('./Wine_Train.csv', header = TRUE)
-wine_test = read.csv("./Wine_Test_Set.csv", header = TRUE) 
-wine_type_location = read.csv('./Wine_Types_and_Locations.csv', header = TRUE)
+wine_train = read.csv('./Data/Wine_Train.csv', header = TRUE)
+wine_test = read.csv("./Data/Wine_Test_Set.csv", header = TRUE) 
+wine_type_location = read.csv('./Data/Wine_Types_and_Locations.csv', header = TRUE)
 
 wine_test <- wine_test |> mutate(location = ifelse(location == "Califormia", "California", location))
 
