@@ -1,7 +1,8 @@
 ---
-title: "DDS 6306 Wine Quality - Final Project"
+title: "DDS-6306 Wine Quality - Final Project"
 output: html_document
 date: "2024-11-27"
+author: "Miguel Zavala, Tommy Mai"
 ---
 
 ```{r setup, include=FALSE}

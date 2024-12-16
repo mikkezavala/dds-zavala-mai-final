@@ -2,5 +2,4 @@
 
 Analysis by: Tommy Mai, Miguel Zavala
 
-
-Github Site: https://mikkezavala.github.io/dds-zavala-mai-final/
+Github Pages Site: <https://mikkezavala.github.io/dds-zavala-mai-final/>
