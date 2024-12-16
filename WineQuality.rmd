@@ -35,8 +35,10 @@ library(DT)
 ```{r}
 
 wine_train = read.csv('./Wine_Train.csv', header = TRUE)
-wine_test = read.csv("./Wine_Test_Set.csv", header = TRUE)
+wine_test = read.csv("./Wine_Test_Set.csv", header = TRUE) 
 wine_type_location = read.csv('./Wine_Types_and_Locations.csv', header = TRUE)
+
+wine_test <- wine_test |> mutate(location = ifelse(location == "Califormia", "California", location))
 
 type_mode <- tolower(names(sort(table(wine_type_location$type), decreasing = TRUE))[1])
 location_mode <- tolower(names(sort(table(wine_type_location$location), decreasing = TRUE))[1])
@@ -434,17 +436,17 @@ create_submission_file = function(test_data, predictions, file_path) {
 ### Build Predictions on Test Set
 
 ```{r}
-# final_knn_predictions = knn.reg(
-#   train = as.matrix(wine_train_scaled[, model_cols]),
-#   test = as.matrix(wine_test_scaled[, model_cols]),
-#   y = wine_train_scaled$quality,
-#   k = best_k
-# )$pred
+wine_test$quality <- predict(nb_fit, newdata = wine_test)
 ```
 
 ### Define the file path and call the function
 
 ```{r}
-# file_path = "Wine_Test_Predictions.csv"
-# create_submission_file(wine_test, final_knn_predictions, file_path)
+file_path = "Wine_Test_Predictions.csv"
+write.csv(
+  wine_test |> dplyr::select(ID, quality) |>
+    mutate(quality = as.numeric(quality)),
+  file_path,
+  row.names = FALSE
+)
 ```
