@@ -338,12 +338,6 @@ sprintf("MAE: %.6f -- ADJ RSQR: %.6f -- AIC: %.6f",lm_mae, summary_fit$adj.r.squ
 ### Fitting with Naive Bayes
 
 ```{r}
-# nb_model = train(
-#   quality_cat ~ .,
-#   data = train_set[, c(model_cols, "quality_cat")],
-#   method = "naive_bayes",
-#   trControl = cv_control
-# )
 cv_control = trainControl(method = "cv", number = 5)
 train_index <- createDataPartition(wine_train[["quality"]], p = 0.7, list = FALSE)
 train_set <- wine_train[train_index, ]
