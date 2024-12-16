@@ -24,6 +24,10 @@ library(GGally)
 library(naivebayes)
 library(ggcorrplot)
 library(dplyr)
+library(furrr)
+library(parallel)
+library(progressr)
+library(DT)
 ```
 
 ## Data Inspection
@@ -245,7 +249,7 @@ results <- runTests("quality", wine_train |> dplyr::select(-ID, -type, -location
 datatable(
   results,
   caption = "Performance Comparison for NB, KNN, and Regression Models",
-  options = list(pageLength = 20, autoWidth = TRUE),
+  options = list(pageLength = 5, autoWidth = TRUE),
   rownames = FALSE
 )
 ```
@@ -292,10 +296,6 @@ test_polynomials <- function(data, base_formula, features) {
 ### Execute adding polynomials and compare
 
 ```{r}
-train_index <- createDataPartition(wine_train$quality, p = 0.7, list = FALSE)
-train_set <- wine_train[train_index, ]
-test_set <- wine_train[-train_index, ]
-
 model_base <- "quality ~ volatile.acidity + citric.acid + residual.sugar + chlorides + pH + alcohol + sulphates"
 # fixed.acidity + citric.acid + chlorides + residual.sugar + pH + alcohol + sulphates + type + location + type * citric.acid  + type * location
 features <- c(
@@ -311,7 +311,7 @@ features <- c(
 
 #volatile.acidity, residual.sugar, chlorides, free.sulfur.dioxide, total.sulfur.dioxide, density, sulphates, alcohol
 
-results <- test_polynomials(train_data, model_base, features)
+results <- test_polynomials(wine_train, model_base, features)
 results <- results[order(results$MSE_QUAD), ]
 results
 ```
@@ -440,17 +440,17 @@ create_submission_file = function(test_data, predictions, file_path) {
 ### Build Predictions on Test Set
 
 ```{r}
-final_knn_predictions = knn.reg(
-  train = as.matrix(wine_train_scaled[, model_cols]),
-  test = as.matrix(wine_test_scaled[, model_cols]),
-  y = wine_train_scaled$quality,
-  k = best_k
-)$pred
+# final_knn_predictions = knn.reg(
+#   train = as.matrix(wine_train_scaled[, model_cols]),
+#   test = as.matrix(wine_test_scaled[, model_cols]),
+#   y = wine_train_scaled$quality,
+#   k = best_k
+# )$pred
 ```
 
 ### Define the file path and call the function
 
 ```{r}
-file_path = "Wine_Test_Predictions.csv"
-create_submission_file(wine_test, final_knn_predictions, file_path)
+# file_path = "Wine_Test_Predictions.csv"
+# create_submission_file(wine_test, final_knn_predictions, file_path)
 ```
