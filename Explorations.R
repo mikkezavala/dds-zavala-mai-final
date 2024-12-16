@@ -10,17 +10,50 @@ library(furrr)
 library(progressr)
 library(ggplot2)
 
+
+type_mode <- tolower(names(sort(table(wine_type_location$type), decreasing = TRUE))[1])
+location_mode <- tolower(names(sort(table(wine_type_location$location), decreasing = TRUE))[1])
+
+test_data = read.csv(
+  './Wine_Test_Set.csv',
+  header = TRUE
+)
+
 train_data = read.csv(
   './Wine_Train.csv',
   header = TRUE
 )
 
-train_data = read.csv(
-  './Wine_Test_Set.csv',
+wine_type_location <- read.csv(
+  './Wine_Types_and_Locations.csv',
   header = TRUE
-)
+) 
+
+wine_type_location <- wine_type_location |> mutate(
+    type = ifelse(is.na(type) | type == "", type_mode, tolower(type)),
+    location = ifelse(is.na(location) | location == "", location_mode, tools::toTitleCase(location))
+  ) |>
+  mutate(location = ifelse(location == "Califormia", "California", location)) |>
+  mutate(
+    type = factor(type),
+    location = factor(location)
+  )
 
 
+train_data <- left_join(train_data, wine_type_location, by = "ID")
+
+str(train_data)
+type_dummies <- model.matrix(~ type - 1, data = train_data)
+location_dummies <- model.matrix(~ location - 1, data = train_data)
+
+train_data_encoded <- cbind(
+  train_data,
+  type_dummies,
+  location_dummies
+) |> dplyr::select(-all_of(c("ID")))
+
+
+head(train_data_encoded)
 # Parallel Execution Setup
 n_cores <- detectCores()
 max_memory <- 16 * 1024 ^ 3
@@ -29,7 +62,6 @@ options(future.globals.maxSize = max_memory)
 
 
 evaluateModels <- function(target, features, data_train) {
-  ### KNN
   train_index <- createDataPartition(data_train[[target]], p = 0.7, list = FALSE)
   train_data <- data_train[train_index, ]
   test_data <- data_train[-train_index, ]
@@ -38,15 +70,6 @@ evaluateModels <- function(target, features, data_train) {
   test_x <- test_data[, features, drop = FALSE]
   train_labels <- factor(train_data[[target]])
   test_labels <- factor(test_data[[target]], levels = levels(train_labels))
-  
-  knnModel <- FNN::knn(
-    train = train_x,
-    test = test_x,
-    cl = train_labels,
-    k = ceiling(sqrt(nrow(test_data)))
-  )
-  
-  knnMatrix <- confusionMatrix(factor(knnModel, levels = levels(test_labels)), test_labels, mode = "everything")
   
   ## NB
   formulaNb <- paste(target, "~", paste(features, collapse = " + "))
@@ -60,10 +83,7 @@ evaluateModels <- function(target, features, data_train) {
       nb_formula = formulaNb,
       nb_accuracy = nbMatrix$overall["Accuracy"],
       nb_sensitivity = mean(nbMatrix$byClass[, "Sensitivity"], na.rm = TRUE),
-      nb_specificity = mean(nbMatrix$byClass[, "Specificity"], na.rm = TRUE),
-      knn_accuracy = knnMatrix$overall["Accuracy"],
-      knn_sensitivity = mean(knnMatrix$byClass[, "Sensitivity"], na.rm = TRUE),
-      knn_specificity = mean(knnMatrix$byClass[, "Specificity"], na.rm = TRUE)
+      nb_specificity = mean(nbMatrix$byClass[, "Specificity"], na.rm = TRUE)
     )
   )
 }
@@ -131,9 +151,6 @@ permuteModels <- function(target, data) {
         nb_accuracy = knn_nb_results$nb_accuracy,
         nb_sensitivity = knn_nb_results$nb_sensitivity,
         nb_specificity = knn_nb_results$nb_specificity,
-        knn_accuracy = knn_nb_results$knn_accuracy,
-        knn_sensitivity = knn_nb_results$knn_sensitivity,
-        knn_specificity = knn_nb_results$knn_specificity,
         AIC = regression_results$AIC,
         BIC = regression_results$BIC,
         MAE = regression_results$MAE,
@@ -163,7 +180,8 @@ runTests <- function(target, data) {
            mutate(across(where(is.numeric), ~ round(.x, 6))))
 }
 
-results <- runTests("quality", wines |> dplyr::select(-all_of(c("ID"))))
+## Select best feature set based without categorical
+results <- runTests("quality", train_data |> dplyr::select(-ID, -type, -location))
 
 datatable(
   results,
@@ -190,7 +208,9 @@ test_polynomials <- function(data, base_formula, features) {
     adj_r2_cubic <- summary(fit_cubic)$adj.r.squared
     
     analysis <- data.frame(
-      Feature = feature, 
+      Feature = feature,
+      AIC_QUAD = AIC(fit_quad),
+      AIC_CUBIC = AIC(fit_cubic),
       MSE_QUAD = mse_quad,
       MSE_CUBIC = mse_cubic,
       ADJ_R2_QUAD = adj_r2_quad,
@@ -204,20 +224,62 @@ test_polynomials <- function(data, base_formula, features) {
   return(results)
 }
 
-wines$qlevel <- cut(
-  wines$quality,
-  breaks = c(0, 3, 6, 8, 10),
-  labels = c("Very Low", "Medium", "High", "Very High"),
-  right = TRUE
-)
-wines$qlevelN <- as.numeric(wines$qlevel)
 
-table(wines$qlevel)
-table(wines$qlevelN)
+fitO <- lm(quality ~ ., data = train_data)
+summary(fitO)
+vif(fitO)
 
-train_index <- createDataPartition(wines$quality, p = 0.7, list = FALSE)
-train_data <- wines[train_index, ]
-test_data <- wines[-train_index, ]
+train_index <- createDataPartition(train_data[["quality"]], p = 0.7, list = FALSE)
+train_set <- train_data[train_index, ]
+test_set <- train_data[-train_index, ]
+
+train_set$quality <- factor(train_set$quality)
+test_set$quality <- factor(test_set$quality, levels = levels(train_set$quality))
+nbModel <- naiveBayes(quality ~ ., data = train_set)
+
+predictions <- predict(nbModel, test_set)
+predictions <- factor(predictions, levels = levels(train_set$quality))
+actual <- factor(test_set[["quality"]], levels = levels(train_set$quality))
+
+conf_matrix <- confusionMatrix(predictions, actual, mode = "everything")
+print(conf_matrix)
+
+###
+
+fitO <- lm(quality ~ ., data = train_data)
+summary(fitO)
+vif(fitO)
+
+train_index <- createDataPartition(train_data[["quality"]], p = 0.7, list = FALSE)
+train_set <- train_data[train_index, ]
+test_set <- train_data[-train_index, ]
+
+train_set$quality <- factor(train_set$quality)
+test_set$quality <- factor(test_set$quality, levels = levels(train_set$quality))
+nbModel <- naiveBayes(quality ~ ., data = train_set)
+
+predictions <- predict(nbModel, test_set)
+predictions <- factor(predictions, levels = levels(train_set$quality))
+actual <- factor(test_set[["quality"]], levels = levels(train_set$quality))
+
+conf_matrix <- confusionMatrix(predictions, actual, mode = "everything")
+print(conf_matrix)
+
+# 
+# wines$qlevel <- cut(
+#   wines$quality,
+#   breaks = c(0, 3, 6, 8, 10),
+#   labels = c("Very Low", "Medium", "High", "Very High"),
+#   right = TRUE
+# )
+# wines$qlevelN <- as.numeric(wines$qlevel)
+# 
+# table(wines$qlevel)
+# table(wines$qlevelN)
+
+train_index <- createDataPartition(train_data$quality, p = 0.7, list = FALSE)
+train_set <- wines[train_index, ]
+test_set <- wines[-train_index, ]
 
 model_base <- "quality ~ fixed.acidity + volatile.acidity + citric.acid + residual.sugar + total.sulfur.dioxide + pH + alcohol + sulphates"
 
@@ -229,19 +291,57 @@ features <- c(
   "total.sulfur.dioxide",
   "pH",
   "alcohol",
-  "sulphates"
+  "sulphates",
+  "type",
+  "location"
 )
 
 
-# results <- test_polynomials(train_data, model_base, features)
-# results <- results[order(results$MSE_QUAD), ]
-# results
-set.seed(1233)
-model <- qlevelN ~ fixed.acidity + volatile.acidity + citric.acid + residual.sugar + total.sulfur.dioxide + pH + alcohol + sulphates + I(alcohol^2) + I(alcohol^3) + I(residual.sugar ^2) + I(residual.sugar ^3) + I(total.sulfur.dioxide ^2) + I(total.sulfur.dioxide ^3) + I(pH ^2) + I(pH ^3) + I(volatile.acidity ^2) + I(volatile.acidity ^3) + I(fixed.acidity ^2) + I(fixed.acidity ^3) + I(sulphates^2) + I(sulphates^3) + I(citric.acid ^2) + I(citric.acid ^3)
+results <- test_polynomials(train_data, model_base, features)
+results <- results[order(results$MSE_QUAD), ]
+results
 
-fit <- lm(model, data = train_data)
-summary <- summary(fit)
-sprintf("MSE: %.6f -- ADJ RSQR: %.6f -- AIC: %.6f", mean(residuals(fit) ^ 2), summary$adj.r.squared, AIC(fit))
+
+
+train_index <- createDataPartition(train_data[["quality"]], p = 0.7, list = FALSE)
+train_set <- train_data[train_index, ]
+test_set <- train_data[-train_index, ]
+
+model <- quality ~ fixed.acidity + citric.acid + chlorides + residual.sugar + pH + alcohol + sulphates + type + location + type * location
+fit <- lm(model, data = train_set)
+
+summary_fit <- summary(fit)
+vif_values <- vif(fit)
+
+sprintf("MSE: %.6f -- ADJ RSQR: %.6f -- AIC: %.6f", mean(residuals(fit)^2), summary_fit$adj.r.squared, AIC(fit))
+test_set$predicted_quality <- predict(fit, newdata = test_set)
+head(test_set[, c("quality", "predicted_quality")])
+
+ggplot(test_set, aes(x = predicted_quality, y = quality)) +
+  geom_point(color = "blue", alpha = 0.6) +
+  geom_abline(slope = 1, intercept = 0, color = "red", linetype = "dashed") +
+  labs(
+    title = "Predicted vs Actual Prices",
+    x = "Predicted Prices",
+    y = "Actual Prices"
+  ) +
+  theme_minimal()
+
+
+
+
+train_set$quality <- factor(train_set$quality)
+test_set$quality <- factor(test_set$quality, levels = levels(train_set$quality))
+nbModel <- naiveBayes(quality ~ citric.acid + residual.sugar + pH + alcohol + sulphates + type + location, data = train_set)
+
+
+predictions_prob <- predict(nbModel, test_set, type = "raw")
+quality_levels <- as.numeric(colnames(predictions_prob))
+predicted_numeric <- apply(predictions_prob, 1, function(x) sum(x * quality_levels))
+
+actual_numeric <- as.numeric(as.character(test_set$quality))
+mse <- mean((actual_numeric - predicted_numeric)^2)
+sprintf("Mean Squared Error (MSE): %.6f", mse)
 
 
 # 
