@@ -1,0 +1,12 @@
+name: Wine-Quality
+title: Wine-Quality
+username: mikkezavala
+account: mikkezavala
+server: shinyapps.io
+hostUrl: https://api.shinyapps.io/v1
+appId: 13603935
+bundleId: 9526565
+url: https://cheon-zavala.shinyapps.io/Wine-Quality/
+version: 1
+asMultiple: FALSE
+asStatic: FALSE
