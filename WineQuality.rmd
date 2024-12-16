@@ -75,6 +75,7 @@ tibble(
 ```
 
 ### Histogram of the quality
+
 ```{r}
 ggplot(wine_train, aes(x = factor(quality))) + 
   geom_bar(fill = "purple", color = "black", alpha = 0.7) +  
@@ -97,7 +98,8 @@ ggplot(wine_train, aes(x = factor(quality))) +
   )
 ```
 
-### Remove 'ID' column 
+### Remove 'ID' column
+
 ```{r}
 correlation_matrix = cor(wine_train %>%
                            select_if(is.numeric) %>%
@@ -115,6 +117,7 @@ corrplot(correlation_matrix,
          diag = FALSE,               
          tl.cex = 0.8)
 ```
+
 ### Variable Inflation
 
 ```{r}
@@ -135,6 +138,7 @@ sprintf("Removed features with high VIF: %s", features_to_remove)
 ## Feature Construction
 
 ### Top Features
+
 ```{r}
 numeric_features = wine_train %>% select_if(is.numeric)
 correlation_matrix = cor(numeric_features)
@@ -156,6 +160,7 @@ ggplot(wine_train, aes(x = factor(quality), y = alcohol, fill = factor(quality))
 ```
 
 #### Wine Types
+
 ```{r}
 ggplot(wine_train, aes(x = type, fill = type)) +
   geom_bar(color = "black") +
@@ -203,6 +208,7 @@ ggplot(wine_train, aes(x = location, fill = location)) +
 ### Naive Bayes and Linear Regression
 
 #### Prepare environment and helper functions
+
 ```{r}
 n_cores <- detectCores()
 max_memory <- 16 * 1024 ^ 3
@@ -339,8 +345,8 @@ datatable(
 
 ### Compare with polynomial models
 
-
 #### Helper functions
+
 ```{r}
 test_polynomials <- function(data, base_formula, features) {
   results <- data.frame()
@@ -407,7 +413,7 @@ train_index <- createDataPartition(wine_train[["quality"]], p = 0.7, list = FALS
 train_set <- wine_train[train_index, ]
 test_set <- wine_train[-train_index, ]
 
-model <- quality ~ fixed.acidity + citric.acid + chlorides + residual.sugar + pH + alcohol + sulphates + type + location
+model <- quality ~ fixed.acidity + citric.acid + chlorides + residual.sugar + pH + alcohol + sulphates + type + location + type * location
 fit <- lm(model, data = train_set)
 
 summary_fit <- summary(fit)
@@ -421,7 +427,7 @@ sprintf("MAE: %.6f -- ADJ RSQR: %.6f -- AIC: %.6f",lm_mae, summary_fit$adj.r.squ
 ### Fitting with Naive Bayes
 
 ```{r}
-cv_control = trainControl(method = "cv", number = 5)
+cv_control = trainControl(method = "cv", number = 4)
 train_index <- createDataPartition(wine_train[["quality"]], p = 0.7, list = FALSE)
 train_set <- wine_train[train_index, ]
 test_set <- wine_train[-train_index, ]
@@ -449,7 +455,6 @@ actual_numeric <- as.numeric(as.character(test_set$quality))
 nb_mae <- mean(abs(actual_numeric - predicted_numeric))
 sprintf("Mean Absolute Error (MAE): %.6f", nb_mae)
 ```
-
 
 ## Model MAE comparison
 
