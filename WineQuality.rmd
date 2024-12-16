@@ -75,31 +75,46 @@ tibble(
 ```
 
 ### Histogram of the quality
-
 ```{r}
-ggplot(wine_train, aes(x = quality)) +
-  geom_histogram(binwidth = 1, fill = "maroon", color = "black", alpha = 0.7) +
-  labs(title = "Distribution of Wine Quality", x = "Quality", y = "Frequency") +
-  theme_minimal()
+ggplot(wine_train, aes(x = factor(quality))) + 
+  geom_bar(fill = "purple", color = "black", alpha = 0.7) +  
+  geom_text(                                           
+    stat = "count", 
+    aes(label = paste0(..count.., " (", round(..count.. / sum(..count..) * 100, 1), "%)")),
+    vjust = -0.5, 
+    size = 5
+  ) +
+  scale_x_discrete(breaks = sort(unique(wine_train$quality))) +
+  labs(
+    title = "Distribution of Wine Quality", 
+    x = "Quality", 
+    y = "Frequency"
+  ) +
+  theme_minimal() +
+  theme(
+    plot.title = element_text(hjust = 0.5, size = 16, face = "bold"), 
+    axis.text.x = element_text(size = 12)                      
+  )
 ```
 
-### Correlation
-
+### Remove 'ID' column 
 ```{r}
-correlation_matrix = cor(wine_train %>% select_if(is.numeric))
+correlation_matrix = cor(wine_train %>%
+                           select_if(is.numeric) %>%
+                           select(-ID))  # Exclude the 'ID' column
+
+# Correlation matrix
 corrplot(correlation_matrix, 
          method = "color",           
-         type = "upper",            
-         tl.col = "black",          
-         tl.srt = 45,               
-         addCoef.col = "black",     
-         number.cex = 0.7,          
+         type = "upper",             
+         tl.col = "black",         
+         tl.srt = 45,                
+         addCoef.col = "black",      
+         number.cex = 0.7,           
          col = colorRampPalette(c("red", "white", "blue"))(200),  
-         diag = FALSE,              
+         diag = FALSE,               
          tl.cex = 0.8)
-
 ```
-
 ### Variable Inflation
 
 ```{r}
@@ -118,6 +133,72 @@ sprintf("Removed features with high VIF: %s", features_to_remove)
 ```
 
 ## Feature Construction
+
+### Top Features
+```{r}
+numeric_features = wine_train %>% select_if(is.numeric)
+correlation_matrix = cor(numeric_features)
+quality_correlation = correlation_matrix["quality", ]
+top_3_features = sort(quality_correlation, decreasing = TRUE)[2:4] 
+top_3_feature_names = names(top_3_features)
+print(top_3_features) 
+
+# Boxplot for Alcohol by Quality
+ggplot(wine_train, aes(x = factor(quality), y = alcohol, fill = factor(quality))) +
+  geom_boxplot(outlier.color = "red", outlier.size = 2) +
+  scale_fill_brewer(palette = "Set2") +
+  labs(title = "Boxplot of Alcohol Content by Wine Quality",
+       x = "Quality Score",
+       y = "Alcohol Content",
+       fill = "Quality") +
+  theme_minimal() +
+  theme(plot.title = element_text(hjust = 0.5, face = "bold"))
+```
+
+#### Wine Types
+```{r}
+ggplot(wine_train, aes(x = type, fill = type)) +
+  geom_bar(color = "black") +
+  geom_text(stat = "count", aes(label = ..count..), vjust = -0.5, size = 5) + 
+  scale_fill_manual(
+    values = c("red" = "maroon", "white" = "ivory")  # Define colors
+  ) +
+  labs(
+    title = "Types of Wine (Imputed Unknowns)", 
+    x = "Type", 
+    y = "Count"
+  ) +
+  theme_minimal() +
+  theme(
+    plot.title = element_text(hjust = 0.5, size = 16, face = "bold"),
+    axis.text = element_text(size = 12)
+  )
+```
+
+#### Wine Locations
+
+```{r}
+ggplot(wine_train, aes(x = location, fill = location)) +
+  geom_bar(color = "black") +  
+  geom_text(
+    stat = "count",
+    aes(label = ..count..),
+    vjust = -0.5, size = 5, color = "black"
+  ) +
+  scale_fill_manual(
+    values = c("Texas" = "darkred", "California" = "darkblue")
+  ) +
+  labs(
+    title = "Location Count",         
+    x = "Location",                           
+    y = "Count"
+  ) +                       
+  theme_minimal() +
+  theme(
+    plot.title = element_text(hjust = 0.5, size = 16, face = "bold"),
+    axis.text.x = element_text(angle = 45, hjust = 1)
+  )
+```
 
 ### Naive Bayes and Linear Regression
 
