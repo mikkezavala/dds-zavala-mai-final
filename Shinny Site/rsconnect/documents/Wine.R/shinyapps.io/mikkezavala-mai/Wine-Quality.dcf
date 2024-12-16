@@ -1,0 +1,12 @@
+name: Wine-Quality
+title: Shinny Site
+username: mikkezavala-mai
+account: mikkezavala-mai
+server: shinyapps.io
+hostUrl: https://api.shinyapps.io/v1
+appId: 13603978
+bundleId: 9526620
+url: https://mikkezavala-mai.shinyapps.io/Wine-Quality/
+version: 1
+asMultiple: FALSE
+asStatic: FALSE

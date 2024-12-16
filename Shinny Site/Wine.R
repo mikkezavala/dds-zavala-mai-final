@@ -11,7 +11,6 @@ ui = fluidPage(
   
   sidebarLayout(
     sidebarPanel(
-      fileInput("file_upload", "Upload CSV Train File:", accept = c(".csv")),
       selectInput("feature", "Select Feature:",
                   choices = colnames(train_data)[-which(colnames(train_data) == "quality")],
                   selected = "alcohol"),
