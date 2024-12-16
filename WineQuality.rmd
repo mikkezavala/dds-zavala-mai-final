@@ -11,9 +11,7 @@ knitr::opts_chunk$set(echo = TRUE)
 
 # Wine Quality
 
-## Environment Preparation
-
-```{r}
+```{r, include=FALSE, message=FALSE}
 library(tidyverse)
 library(caret)
 library(class)
@@ -33,7 +31,7 @@ library(DT)
 
 ## Data Inspection
 
-```{r}
+```{r, include=TRUE, message=TRUE}
 
 wine_train = read.csv('./Data/Wine_Train.csv', header = TRUE)
 wine_test = read.csv("./Data/Wine_Test_Set.csv", header = TRUE) 
@@ -526,7 +524,7 @@ create_submission_file = function(test_data, predictions, file_path) {
 wine_test$quality <- predict(nb_fit, newdata = wine_test)
 ```
 
-### Define the file path and call the function
+### Write Predictions
 
 ```{r}
 file_path = "Wine_Test_Predictions.csv"
